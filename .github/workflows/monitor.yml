@@ -1,0 +1,42 @@
+name: Monitor Proposições CMV-ES
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 08:00 BRT
+    - cron: '0 15 * * *'   # 12:00 BRT
+    - cron: '0 20 * * *'   # 17:00 BRT
+    - cron: '0 0 * * *'    # 21:00 BRT
+  workflow_dispatch:
+
+jobs:
+  monitorar:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Executar monitor
+        env:
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          EMAIL_SENHA: ${{ secrets.EMAIL_SENHA }}
+          EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINO }}
+        run: node monitor.js
+
+      - name: Salvar estado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ ! -f estado.json ]; then
+            echo '{"proposicoes_vistas":[],"ultima_execucao":""}' > estado.json
+          fi
+          git add estado.json
+          git diff --staged --quiet || git commit -m "chore: atualiza estado [skip ci]"
+          git push

@@ -1,0 +1,12 @@
+{
+  "name": "monitor-proposicoes-cmv-es",
+  "version": "1.0.0",
+  "description": "Monitor automático de proposições da Câmara Municipal de Vitória-ES",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0"
+  }
+}
