@@ -280,14 +280,15 @@ async function buscarProposicoes(idsVistos, primeiroRun) {
   let estadoAtual = await mudarPara50Itens(inicial);
   await sleep(1500);
 
-  const todasNovas = estadoAtual.proposicoes.filter(p => !idsVistos.has(p.id));
+  const todasProposicoes = [...estadoAtual.proposicoes];
+  const todasNovasPag1 = estadoAtual.proposicoes.filter(p => !idsVistos.has(p.id));
 
-  if (!primeiroRun && todasNovas.length === 0) {
+  if (!primeiroRun && todasNovasPag1.length === 0) {
     console.log('✅ Nenhuma novidade na primeira página. Parando.');
+    // Mesmo sem novidades, marca IDs da pág 1 como vistos
+    todasProposicoes.forEach(p => idsVistos.add(String(p.id)));
     return [];
   }
-
-  const todasProposicoes = [...estadoAtual.proposicoes];
   const totalPaginas = Math.ceil(inicial.total / ITENS_POR_PAGINA);
   const maxPag = primeiroRun ? Math.min(MAX_PAGINAS_PRIMEIRO_RUN, totalPaginas) : totalPaginas;
 
@@ -313,8 +314,19 @@ async function buscarProposicoes(idsVistos, primeiroRun) {
     }
   }
 
-  // Filtra apenas tipos monitorados e IDs novos
-  return todasProposicoes.filter(p => !idsVistos.has(p.id) && tipoMonitorado(p.tipo));
+  // Deduplica por ID (evita duplicatas entre páginas)
+  const vistoNessaColeta = new Map();
+  for (const p of todasProposicoes) {
+    if (!vistoNessaColeta.has(p.id)) vistoNessaColeta.set(p.id, p);
+  }
+  const unicas = Array.from(vistoNessaColeta.values());
+
+  // Marca TODOS os IDs coletados como vistos (independente do tipo)
+  // para não reprocessar proposições de tipos não monitorados em runs futuros
+  unicas.forEach(p => idsVistos.add(String(p.id)));
+
+  // Retorna apenas as novas dos tipos monitorados para o email
+  return unicas.filter(p => tipoMonitorado(p.tipo));
 }
 
 // ─── Email ────────────────────────────────────────────────────────────────────
@@ -421,13 +433,11 @@ async function enviarEmail(novas) {
 
     if (novas.length > 0) {
       await enviarEmail(novas);
-      // Marca como vistos TODOS os IDs coletados (não só os filtrados),
-      // para não reprocessar tipos não monitorados a cada run
-      novas.forEach(p => idsVistos.add(String(p.id)));
     } else {
       console.log('✅ Sem novidades nos tipos monitorados. Nada a enviar.');
     }
 
+    // idsVistos já foi atualizado com TODOS os IDs coletados dentro de buscarProposicoes
     estado.proposicoes_vistas = Array.from(idsVistos);
     estado.ultima_execucao = new Date().toISOString();
     salvarEstado(estado);
