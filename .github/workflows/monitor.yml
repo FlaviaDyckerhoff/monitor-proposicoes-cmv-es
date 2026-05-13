@@ -3,9 +3,7 @@ name: Monitor Proposições CMV-ES
 on:
   schedule:
     - cron: '0 11 * * *'   # 08:00 BRT
-    - cron: '0 15 * * *'   # 12:00 BRT
-    - cron: '0 20 * * *'   # 17:00 BRT
-    - cron: '0 0 * * *'    # 21:00 BRT
+    - cron: '0 19 * * *'   # 16:00 BRT
   workflow_dispatch:
 
 jobs:
