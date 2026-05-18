@@ -6,6 +6,7 @@ const EMAIL_REMETENTE = process.env.EMAIL_REMETENTE || 'flavia@monitorlegislativ
 const EMAIL_SENHA = process.env.EMAIL_SENHA;
 const ARQUIVO_ESTADO = 'estado.json';
 const URL_BASE = 'https://camarasempapel.cmv.es.gov.br/spl/consulta-producao.aspx';
+const URL_ORIGEM = 'https://camarasempapel.cmv.es.gov.br/spl/';
 const ANO = new Date().getFullYear();
 const ITENS_POR_PAGINA = 50;
 const MAX_PAGINAS_PRIMEIRO_RUN = 10; // 500 proposições no backlog inicial
@@ -104,8 +105,10 @@ function parseProposicoes(html) {
     if (!idMatch) continue;
     const id = idMatch[1];
 
-    const tituloMatch = bloco.match(/kt-widget5__title[^>]*>\s*([^<]+?)\s*<\/a>/);
-    const titulo = tituloMatch ? tituloMatch[1].trim() : '-';
+    const tituloMatch = bloco.match(/<a\s+href="([^"]+)"\s+class="kt-widget5__title"[^>]*>\s*([^<]+?)\s*<\/a>/);
+    const href = tituloMatch ? tituloMatch[1].replace(/&amp;/g, '&') : '';
+    const url = href ? new URL(href, URL_ORIGEM).toString() : URL_BASE + '?ano=' + ANO + '&ano_proposicao=' + ANO;
+    const titulo = tituloMatch ? tituloMatch[2].trim() : '-';
 
     const tipoNumMatch = titulo.match(/^(.+?)\s+n[°º]\s*(\d+)\/\d+/);
     const tipo = tipoNumMatch ? tipoNumMatch[1].trim() : titulo;
@@ -128,7 +131,7 @@ function parseProposicoes(html) {
     const processoMatch = bloco.match(/Processo N°:<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
     const processo = processoMatch ? processoMatch[1].trim() : '-';
 
-    proposicoes.push({ id, tipo, numero, ementa, data, autor, processo });
+    proposicoes.push({ id, tipo, numero, ementa, data, autor, processo, url });
   }
 
   return proposicoes;
@@ -372,7 +375,7 @@ async function enviarEmail(novas) {
       .sort((a, b) => (parseInt(b.numero) || 0) - (parseInt(a.numero) || 0))
       .map(p => `<tr>
         <td style="padding:8px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap">${p.tipo || '-'}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;white-space:nowrap"><strong>${p.numero || '-'}/${ANO}</strong></td>
+        <td style="padding:8px;border-bottom:1px solid #eee;white-space:nowrap"><a href="${p.url || `${URL_BASE}?ano=${ANO}&ano_proposicao=${ANO}`}" style="color:#003366;font-weight:bold;text-decoration:none">${p.numero || '-'}/${ANO}</a></td>
         <td style="padding:8px;border-bottom:1px solid #eee;font-size:12px">${p.autor || '-'}</td>
         <td style="padding:8px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap">${p.data ? p.data.substring(0, 16) : '-'}</td>
         <td style="padding:8px;border-bottom:1px solid #eee;font-size:12px">${p.ementa || '-'}</td>
