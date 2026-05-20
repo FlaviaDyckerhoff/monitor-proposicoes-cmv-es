@@ -1,5 +1,8 @@
 name: Monitor Proposições CMV-ES
 
+env:
+  TZ: America/Sao_Paulo
+
 on:
   schedule:
     - cron: '0 11 * * *'   # 08:00 BRT
