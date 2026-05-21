@@ -386,7 +386,7 @@ async function enviarEmail(novas) {
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:960px;margin:0 auto">
       <h2 style="color:#003366;border-bottom:2px solid #003366;padding-bottom:8px">
-        🏛️ CMV-ES — ${novas.length} nova(s) proposição(ões)
+        🏛️ Câmara Municipal de Vitória — ${novas.length} nova(s) proposição(ões)
       </h2>
       <p style="color:#666;font-size:13px">Câmara Municipal de Vitória · Monitoramento automático · ${new Date().toLocaleString('pt-BR')}</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -402,15 +402,15 @@ async function enviarEmail(novas) {
         <tbody>${linhas}</tbody>
       </table>
       <p style="margin-top:20px;font-size:12px;color:#999">
-        Acesse: <a href="https://camarasempapel.cmv.es.gov.br/spl/consulta-producao.aspx?ano=${ANO}&ano_proposicao=${ANO}">Portal CMV-ES</a>
+        Acesse: <a href="https://camarasempapel.cmv.es.gov.br/spl/consulta-producao.aspx?ano=${ANO}&ano_proposicao=${ANO}">Portal da Câmara Municipal de Vitória</a>
       </p>
     </div>
   `;
 
   await transporter.sendMail({
-    from: `"Monitor CMV-ES" <${EMAIL_REMETENTE}>`,
+    from: `"Monitor Vitória" <${EMAIL_REMETENTE}>`,
     to: EMAIL_DESTINO,
-    subject: `🏛️ CMV-ES: ${novas.length} nova(s) proposição(ões) — ${new Date().toLocaleDateString('pt-BR')}`,
+    subject: `🏛️ Vitória: ${novas.length} nova(s) proposição(ões) — ${new Date().toLocaleDateString('pt-BR')}`,
     html,
   });
 
