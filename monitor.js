@@ -356,11 +356,41 @@ function ordemTipo(tipo) {
 
 
 const CLIENTES_NOMES_PROPRIOS = [
-  'FIRJAN', 'Red Bull', 'Sindicerv', 'Boticario', 'Boticário', 'Abrasel', 'ANBRASEL',
-  'Energisa', 'EnergisaLuz', 'SABESP', 'COMGAS', 'COMGÁS', 'Eletromidia', 'Eletromídia',
-  'BRT', 'Regenera', 'Nova Infra', 'Seta', 'SETA', 'AkzoNobel', 'Expedia', 'RTSC',
-  'Huawei', 'Carrefour', 'JBS', 'Ajinomoto', 'Vibra', 'Mindlab', 'ABVTEX', 'Neoenergia', 'ENEL',
-  'Equatorial', 'Equatorial Goiás', 'Equatorial Goias', 'Equatorial Goiás Distribuidora de Energia', 'Equatorial Goias Distribuidora de Energia', 'Equtorial'
+  'FIRJAN', 'Red Bull', 'Sindicerv', 'Boticario',
+  'Boticário', 'Grupo Boticario', 'Grupo Boticário', 'O Boticario',
+  'O Boticário', 'Abrasel', 'Abrasel PB', 'Abrasel Paraíba',
+  'ANBRASEL', 'Ambev', 'Heineken', 'Abralatas',
+  'ABIR', 'Coca-Cola', 'Coca Cola', 'Coca-Cola Company',
+  'Femsa', 'Solar', 'Grupo Simões', 'Grupo Simoes',
+  'Andina', 'CVI', 'iFood', 'Zé Delivery',
+  'Ze Delivery', 'Verde Brasil', 'JCRIG', 'Associação dos Cemitérios e Crematórios do Brasil',
+  'Associacao dos Cemiterios e Crematorios do Brasil', 'Lalamove', 'Matrix', 'CVC',
+  'Rei do Pitaco', 'Maersk', 'Mac Jee', 'Norte Energia',
+  'Pacto Pela Fome', 'Sanofi', 'TikTok', 'Minalba',
+  'Esmaltec', 'Nacional Gás', 'Nacional Gas', 'Syngenta',
+  'Braskem', 'Ypê', 'Ype', 'VTal',
+  'V.tal', 'Grupo EPR', 'EPR', 'Natural Energia',
+  'DIAGEO', 'Alpargatas', 'Ternium', 'ABRADEE',
+  'Eletrobras', 'Eletrobrás', 'MeetKai', 'IPQ',
+  'Equatorial', 'EquatorialEnergia', 'Equatorial Energia', 'Equatorial Goiás',
+  'Equatorial Goias', 'Equatorial Goiás Distribuidora de Energia', 'Equatorial Goias Distribuidora de Energia', 'CEA Equatorial',
+  'CEA Equatorial Energia', 'Equtorial', 'Energisa', 'EnergisaLuz',
+  'Neoenergia', 'ENEL', 'Ampla Energia', 'SABESP',
+  'COMGAS', 'COMGÁS', 'AEGEA', 'Aegea Saneamento',
+  'Águas de Teresina', 'Aguas de Teresina', 'Águas de Timon', 'Aguas de Timon',
+  'Águas do Rio', 'Aguas do Rio', 'Águas do Rio 1', 'Águas do Rio 4',
+  'Naturgy', 'Agenersa', 'Regenera', 'Comlurb',
+  'Hekos', 'Orizon', 'Solvi', 'União Norte',
+  'Uniao Norte', 'Vital', 'Eletromidia', 'Eletromídia',
+  'AkzoNobel', 'Expedia', 'Hotels.com', 'Vrbo',
+  'RTSC', 'Gramado Parks', 'Grupo Wish', 'Huawei',
+  'Carrefour', 'Atacadão', 'Atacadao', 'Walmart',
+  "Sam's Club", 'Sams Club', 'JBS', 'Friboi',
+  'Seara', 'Swift', "Pilgrim's", 'Pilgrims',
+  'Wild Fork', 'Ajinomoto', 'Vibra', 'Vibra Energia',
+  'BR Distribuidora', 'Raízen', 'Raizen', 'Mindlab',
+  'ABVTEX', 'Semove', 'Barcas', 'Seta',
+  'Nova Infra', 'BRT'
 ];
 
 function clientesCitadosNaProposicao(p) {
