@@ -5,6 +5,13 @@ const EMAIL_DESTINO = process.env.EMAIL_DESTINO || 'tramitacao@monitorlegislativ
 const EMAIL_REMETENTE = process.env.EMAIL_REMETENTE || 'flavia@monitorlegislativo.com.br';
 const EMAIL_SENHA = process.env.EMAIL_SENHA;
 const ARQUIVO_ESTADO = 'estado.json';
+const RADAR03_URL = process.env.RADAR03_URL || 'https://doe.monitorlegislativo.com.br/controle03/';
+const CASA_RADAR03 = process.env.CASA_RADAR03 || 'ES - Vitória';
+const CONTROLE03_STATE_URL = process.env.CONTROLE03_STATE_URL || new URL('api/state', RADAR03_URL).toString();
+const CONTROLE03_API_USER = process.env.CONTROLE03_API_USER || '';
+const CONTROLE03_API_PASS = process.env.CONTROLE03_API_PASS || '';
+const CONTROLE03_BASIC_AUTH = process.env.CONTROLE03_BASIC_AUTH || '';
+
 const URL_BASE = 'https://camarasempapel.cmv.es.gov.br/spl/consulta-producao.aspx';
 const URL_ORIGEM = 'https://camarasempapel.cmv.es.gov.br/spl/';
 const ANO = new Date().getFullYear();
@@ -458,6 +465,184 @@ function renderizarEmentaCliente(p, renderBase) {
     '</span></div>';
 }
 
+
+function radar03Numero(p) {
+  const numero = String(p?.numero ?? p?.numero_proposicao ?? p?.num ?? '').trim();
+  const ano = String(p?.ano ?? p?.ano_proposicao ?? '').trim();
+  if (!numero) return '';
+  if (numero.includes('/') || !ano) return numero;
+  return numero + '/' + ano;
+}
+
+function radar03BlocoEmail(novas) {
+  const seen = new Set();
+  return (novas || []).map(p => {
+    const tipo = String(p?.tipo ?? p?.sigla ?? p?.rotulo ?? '').trim();
+    const numero = radar03Numero(p);
+    if (!tipo || !numero) return '';
+    const row = `${tipo} ${numero}`;
+    const key = row.toUpperCase();
+    if (seen.has(key)) return '';
+    seen.add(key);
+    return row;
+  }).filter(Boolean).join(' | ');
+}
+
+function radar03PrimeiraFonte(novas) {
+  const item = (novas || []).find(p => p?.link || p?.url || p?.fonte || p?.projeto_url);
+  return item ? String(item.link || item.url || item.fonte || item.projeto_url || '') : '';
+}
+
+
+function radar03TipoControle(tipo) {
+  const normal = String(tipo || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+  const mapa = {
+    'PROJETO DE LEI': 'PL', 'PL': 'PL',
+    'PROJETO DE LEI COMPLEMENTAR': 'PLC', 'PLC': 'PLC',
+    'PROPOSTA DE EMENDA A CONSTITUICAO': 'PEC', 'PEC': 'PEC',
+    'PROJETO DE DECRETO LEGISLATIVO': 'PDL', 'PDL': 'PDL',
+    'PROJETO DE RESOLUCAO': 'PR', 'PR': 'PR',
+    'INDICACAO': 'IND', 'MOCAO': 'MOC', 'REQUERIMENTO': 'REQ', 'REQ.': 'REQ',
+    'REQUERIMENTO DE INFORMACAO': 'REQINF', 'RI': 'REQINF', 'VETO': 'VETO',
+  };
+  return mapa[normal] || String(tipo || '').trim().toUpperCase();
+}
+
+function radar03DiaUtilAtual() {
+  const w = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date());
+  const d = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[w] || 0;
+  if (d === 0 || d === 6) return 4;
+  return Math.max(0, Math.min(4, d - 1));
+}
+
+function radar03AuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = CONTROLE03_BASIC_AUTH || (
+    CONTROLE03_API_USER && CONTROLE03_API_PASS
+      ? Buffer.from(CONTROLE03_API_USER + ':' + CONTROLE03_API_PASS).toString('base64')
+      : ''
+  );
+  if (token) headers.Authorization = token.startsWith('Basic ') ? token : 'Basic ' + token;
+  return headers;
+}
+
+function radar03AgruparNovidades(novas) {
+  const porTipo = new Map();
+  (novas || []).forEach(p => {
+    const tipo = radar03TipoControle(p?.tipo || p?.sigla || p?.rotulo || p?.natureza || '');
+    const partes = radar03NumeroPartes(p);
+    if (!tipo || !partes) return;
+    const atual = porTipo.get(tipo);
+    if (!atual || partes.numeroInt > atual.numeroInt) {
+      porTipo.set(tipo, {
+        tipo,
+        numeroInt: partes.numeroInt,
+        numero: partes.numero,
+        ano: partes.ano || String(p?.ano || p?.ano_proposicao || ''),
+        ementa: String(p?.ementa || p?.resumo || p?.assunto || '').trim(),
+        link: String(p?.link || p?.url || p?.fonte || p?.projeto_url || '').trim(),
+        clienteSugestao: Array.isArray(p?.clientesCitados) ? p.clientesCitados.join(', ') : '',
+      });
+    }
+  });
+  return Array.from(porTipo.values());
+}
+
+async function sincronizarRadar03(novas) {
+  const resumo = radar03AgruparNovidades(novas);
+  if (!resumo.length) return;
+  try {
+    const getResp = await fetch(CONTROLE03_STATE_URL, { headers: radar03AuthHeaders() });
+    if (!getResp.ok) throw new Error('GET ' + getResp.status);
+    const state = await getResp.json();
+    if (!Array.isArray(state.data)) throw new Error('estado central vazio ou inválido');
+
+    const data = state.data;
+    let casa = data.find(item => item && item.casa === CASA_RADAR03);
+    if (!casa) {
+      casa = { casa: CASA_RADAR03, casaId: CASA_RADAR03, regiao: '', responsavel: '', risco: 'media', status: 'A conferir', week: ['off', 'off', 'off', 'off', 'off'], items: [] };
+      data.push(casa);
+    }
+    if (!Array.isArray(casa.items)) casa.items = [];
+    if (!Array.isArray(casa.week)) casa.week = ['off', 'off', 'off', 'off', 'off'];
+    while (casa.week.length < 5) casa.week.push('off');
+
+    resumo.forEach(rec => {
+      let item = casa.items.find(i => String(i?.tipo || '').toUpperCase() === rec.tipo);
+      if (!item) {
+        item = { tipo: rec.tipo, base: 0, mon: rec.numeroInt };
+        casa.items.push(item);
+      }
+      const base = Number.parseInt(String(item.base || item.mon || 0), 10) || 0;
+      item.tipo = rec.tipo;
+      item.mon = rec.numeroInt;
+      item.delta = Math.abs(rec.numeroInt - base);
+      item.sentido = rec.numeroInt === base ? 'bate com o controle' : 'fonte/sistema acima';
+      item.fluxo = item.delta ? 'nao_consultado' : (item.fluxo || 'revisado');
+      item.ementa = rec.ementa || item.ementa || '';
+      item.link = rec.link || item.link || '';
+      item.clienteSugestao = rec.clienteSugestao || item.clienteSugestao || '';
+    });
+
+    casa.status = 'Atualizar 03';
+    casa.week[radar03DiaUtilAtual()] = 'leva';
+    if (!Array.isArray(casa.obs03)) casa.obs03 = [];
+    casa.obs03.push({
+      tipo: CASA_RADAR03,
+      situacao: 'novo',
+      label: 'Rodada sincronizada automaticamente na 03',
+      base: resumo.map(item => item.tipo + ' ' + item.numero + (item.ano ? '/' + item.ano : '')).join(' | '),
+      fonte: 'monitor-proposicoes',
+      at: new Date().toISOString(),
+    });
+
+    const postResp = await fetch(CONTROLE03_STATE_URL, {
+      method: 'POST', headers: radar03AuthHeaders(), body: JSON.stringify({ data }),
+    });
+    if (!postResp.ok) throw new Error('POST ' + postResp.status);
+    console.log('✅ Radar 03 sincronizado: ' + CASA_RADAR03 + ' · ' + resumo.map(item => item.tipo + ' ' + item.numero + '/' + item.ano).join(' | '));
+  } catch (err) {
+    console.warn('⚠️ Não foi possível sincronizar o Radar 03 automaticamente: ' + err.message);
+  }
+}
+
+function radar03ReviewUrl(novas) {
+  const params = new URLSearchParams({
+    casa: CASA_RADAR03,
+    bloco: radar03BlocoEmail(novas),
+    fonte: radar03PrimeiraFonte(novas),
+  });
+  return `${RADAR03_URL}?${params.toString()}`;
+}
+
+function radar03Escape(valor) {
+  return String(valor ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderRadar03EmailButton(novas) {
+  const bloco = radar03BlocoEmail(novas);
+  if (!bloco) return '';
+  return `
+    <div style="background:#ecfdf3;border:1px solid #bbf7d0;border-radius:6px;padding:12px 14px;margin:14px 0;color:#14532d;font-size:13px">
+      <div style="font-weight:bold;margin-bottom:6px">Radar 03 | Novas Proposições</div>
+      <div style="margin-bottom:9px;color:#166534">${radar03Escape(CASA_RADAR03)} · ${radar03Escape(bloco)}</div>
+      <a href="${radar03Escape(radar03ReviewUrl(novas))}" style="display:inline-block;background:#166534;color:white;text-decoration:none;border-radius:4px;padding:8px 11px;font-size:12px;font-weight:bold">Revisar no Radar 03</a>
+      <span style="font-size:12px;color:#64748b;margin-left:8px">abre preenchido para confirmação</span>
+    </div>
+  `;
+}
+
+
 async function enviarEmail(novas) {
   anotarClientesCitados(novas);
   const transporter = nodemailer.createTransport({
@@ -489,6 +674,7 @@ async function enviarEmail(novas) {
   }).join('');
 
   const html = `
+      ${renderRadar03EmailButton(novas)}
     <div style="font-family:Arial,sans-serif;max-width:960px;margin:0 auto">
       <h2 style="color:#003366;border-bottom:2px solid #003366;padding-bottom:8px">
         🏛️ Câmara Municipal de Vitória — ${novas.length} nova(s) proposição(ões)
@@ -540,7 +726,8 @@ async function enviarEmail(novas) {
     console.log(`🆕 Proposições novas (tipos monitorados): ${novas.length}`);
 
     if (novas.length > 0) {
-      await enviarEmail(novas);
+      await sincronizarRadar03(novas);
+    await enviarEmail(novas);
     } else {
       console.log('✅ Sem novidades nos tipos monitorados. Nada a enviar.');
     }
