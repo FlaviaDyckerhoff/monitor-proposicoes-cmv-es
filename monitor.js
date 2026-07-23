@@ -534,23 +534,39 @@ function radar03AuthHeaders() {
 function radar03AgruparNovidades(novas) {
   const porTipo = new Map();
   (novas || []).forEach(p => {
-    const tipo = radar03TipoControle(p?.tipo || p?.sigla || p?.rotulo || p?.natureza || '');
+    const tipo = radar03TipoControle(p?.tipo || p?.sigla || p?.rotulo || '');
     const partes = radar03NumeroPartes(p);
     if (!tipo || !partes) return;
-    const atual = porTipo.get(tipo);
-    if (!atual || partes.numeroInt > atual.numeroInt) {
-      porTipo.set(tipo, {
-        tipo,
-        numeroInt: partes.numeroInt,
-        numero: partes.numero,
-        ano: partes.ano || String(p?.ano || p?.ano_proposicao || ''),
-        ementa: String(p?.ementa || p?.resumo || p?.assunto || '').trim(),
-        link: String(p?.link || p?.url || p?.fonte || p?.projeto_url || '').trim(),
-        clienteSugestao: Array.isArray(p?.clientesCitados) ? p.clientesCitados.join(', ') : '',
-      });
+    const itemCaptado = {
+      tipo,
+      numeroInt: partes.numeroInt,
+      numero: partes.numero,
+      ano: partes.ano || String(p?.ano || ''),
+      id: String(p?.id || p?.codigo || p?.projeto_id || p?.id_proposicao || ''),
+      ementa: String(p?.ementa || p?.resumo || p?.titulo || '').trim(),
+      link: String(p?.link || p?.url || p?.fonte || p?.projeto_url || '').trim(),
+      clienteSugestao: Array.isArray(p?.clientesCitados) ? p.clientesCitados.join(', ') : '',
+    };
+    let atual = porTipo.get(tipo);
+    if (!atual) {
+      atual = { ...itemCaptado, itens: [] };
+      porTipo.set(tipo, atual);
+    }
+    atual.itens.push(itemCaptado);
+    if (partes.numeroInt > atual.numeroInt) {
+      atual.numeroInt = partes.numeroInt;
+      atual.numero = partes.numero;
+      atual.ano = partes.ano || String(p?.ano || '');
+      atual.id = itemCaptado.id;
+      atual.ementa = itemCaptado.ementa;
+      atual.link = itemCaptado.link;
+      atual.clienteSugestao = itemCaptado.clienteSugestao;
     }
   });
-  return Array.from(porTipo.values());
+  return Array.from(porTipo.values()).map(rec => {
+    rec.itens.sort((a, b) => a.numeroInt - b.numeroInt);
+    return rec;
+  });
 }
 
 async function sincronizarRadar03(novas) {
@@ -573,20 +589,37 @@ async function sincronizarRadar03(novas) {
     while (casa.week.length < 5) casa.week.push('off');
 
     resumo.forEach(rec => {
-      let item = casa.items.find(i => String(i?.tipo || '').toUpperCase() === rec.tipo);
-      if (!item) {
-        item = { tipo: rec.tipo, base: 0, mon: rec.numeroInt };
-        casa.items.push(item);
-      }
-      const base = Number.parseInt(String(item.base || item.mon || 0), 10) || 0;
-      item.tipo = rec.tipo;
-      item.mon = rec.numeroInt;
-      item.delta = Math.abs(rec.numeroInt - base);
-      item.sentido = rec.numeroInt === base ? 'bate com o controle' : 'fonte/sistema acima';
-      item.fluxo = item.delta ? 'nao_consultado' : (item.fluxo || 'revisado');
-      item.ementa = rec.ementa || item.ementa || '';
-      item.link = rec.link || item.link || '';
-      item.clienteSugestao = rec.clienteSugestao || item.clienteSugestao || '';
+      const detalhes = Array.isArray(rec.itens) && rec.itens.length ? rec.itens : [rec];
+      const existentesTipo = casa.items.filter(i => radar03TipoControle(i?.tipo || '') === rec.tipo);
+      const baseAtual = existentesTipo.reduce((max, i) => {
+        const n = Number.parseInt(String(i?.base || i?.mon || 0), 10) || 0;
+        return Math.max(max, n);
+      }, 0);
+
+      detalhes.forEach(det => {
+        let item = casa.items.find(i =>
+          (det.id && i?.radar03Id === det.id) ||
+          (radar03TipoControle(i?.tipo || '') === det.tipo &&
+            Number.parseInt(String(i?.mon || 0), 10) === det.numeroInt &&
+            String(i?.link || '') === String(det.link || ''))
+        );
+        if (!item) {
+          item = { tipo: det.tipo, base: baseAtual, mon: det.numeroInt, radar03Id: det.id || '' };
+          casa.items.push(item);
+        }
+
+        const base = Number.parseInt(String(item.base || baseAtual || 0), 10) || 0;
+        item.tipo = det.tipo;
+        item.mon = det.numeroInt;
+        item.delta = det.numeroInt === base ? 0 : 1;
+        item.sentido = det.numeroInt === base ? 'bate com o controle' : 'captado individualmente na fonte';
+        item.fluxo = item.delta ? 'nao_consultado' : (item.fluxo || 'revisado');
+        item.ementa = det.ementa || item.ementa || '';
+        item.link = det.link || item.link || '';
+        item.clienteSugestao = det.clienteSugestao || item.clienteSugestao || '';
+        item.radar03Id = det.id || item.radar03Id || '';
+        item.listaReal03 = true;
+      });
     });
 
     casa.status = 'Atualizar 03';
