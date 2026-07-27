@@ -474,6 +474,26 @@ function radar03Numero(p) {
   return numero + '/' + ano;
 }
 
+
+function radar03NumeroPartes(p) {
+  const numeroRaw = String(p?.numero ?? p?.numero_proposicao ?? p?.num ?? '').trim();
+  const anoRaw = String(p?.ano ?? p?.ano_proposicao ?? '').trim();
+  if (!numeroRaw) return null;
+
+  const match = numeroRaw.match(/^(\d+)\s*\/\s*(\d{2,4})$/);
+  const numero = match ? match[1] : numeroRaw;
+  const ano = match ? match[2] : anoRaw;
+  const numeroInt = parseInt(numero, 10);
+  if (!Number.isFinite(numeroInt)) return null;
+
+  return {
+    numero,
+    numeroInt,
+    ano: ano && ano.length === 2 ? '20' + ano : ano,
+  };
+}
+
+
 function radar03BlocoEmail(novas) {
   const seen = new Set();
   return (novas || []).map(p => {
