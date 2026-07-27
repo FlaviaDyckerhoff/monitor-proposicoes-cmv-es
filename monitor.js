@@ -417,7 +417,7 @@ function anotarClientesCitados(proposicoes) {
   for (const p of proposicoes || []) {
     const clientes = clientesCitadosNaProposicao(p);
     p.clientesCitados = clientes;
-    if (clientes.length && p.ementa && !String(p.ementa).includes('Cliente citado:')) {
+    if (clientes.length && p.ementa && !(String(p.ementa).includes('Cliente citado:') || String(p.ementa).includes('CLIENTE CITADO:'))) {
       p.ementa = String(p.ementa).trim() + ' | Cliente citado: ' + clientes.join(', ');
     }
   }
@@ -444,13 +444,13 @@ function mlDestacarTermosClienteEmail(texto, clientes) {
 
   const regex = new RegExp('(^|[^A-Za-zÀ-ÿ0-9])(' + nomes.map(mlEscapeRegExpClienteDestaque).join('|') + ')(?=[^A-Za-zÀ-ÿ0-9]|$)', 'gi');
   return mlEscapeHtmlClienteDestaque(texto).replace(regex, (match, prefixo, termo) => {
-    return prefixo + '<span style="background:#dbeafe;color:#1e3a8a;font-weight:700;border-radius:3px;padding:1px 3px">' + termo + '</span>';
+    return prefixo + '<span style="background:#fff1f2;color:#991b1b;font-weight:800;border:1px solid #fecdd3;border-radius:3px;padding:1px 4px">' + termo + '</span>';
   });
 }
 
 function renderizarEmentaCliente(p, renderBase) {
   const texto = String((p && p.ementa) || '-');
-  const partes = texto.split(/\s+\|\s+Cliente citado:\s+/i);
+  const partes = texto.split(/\s+\|\s+(?:🆘\s*)?CLIENTE CITADO:\s+|\s+\|\s+Cliente citado:\s+/i);
   const ementa = renderBase
     ? renderBase(partes[0])
     : mlDestacarTermosClienteEmail(partes[0], p && p.clientesCitados);
@@ -460,11 +460,29 @@ function renderizarEmentaCliente(p, renderBase) {
 
   if (!clientes) return ementa;
   return ementa + '<div style="margin-top:6px">' +
-    '<span style="display:inline-block;background:#eef6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700">' +
-    'Cliente citado: ' + mlDestacarTermosClienteEmail(clientes, p && p.clientesCitados) +
+    '<span style="display:inline-block;background:#fff1f2;border:1px solid #fb7185;color:#991b1b;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0">' +
+    '🆘 CLIENTE CITADO: ' + mlDestacarTermosClienteEmail(clientes, p && p.clientesCitados) +
     '</span></div>';
 }
 
+
+function clientesCitadosResumoEmail(novas) {
+  const nomes = [];
+  for (const p of novas || []) {
+    for (const nome of (Array.isArray(p && p.clientesCitados) ? p.clientesCitados : [])) {
+      if (nome && !nomes.some(n => n.toLowerCase() === String(nome).toLowerCase())) nomes.push(String(nome));
+    }
+  }
+  return nomes;
+}
+
+function assuntoEmailClienteCitado(novas, assuntoBase) {
+  const nomes = clientesCitadosResumoEmail(novas);
+  if (!nomes.length) return assuntoBase;
+  const lista = nomes.slice(0, 3).join(', ') + (nomes.length > 3 ? ' +' + (nomes.length - 3) : '');
+  const base = String(assuntoBase || '');
+  return base.startsWith('🆘') ? base : '🆘 Cliente citado: ' + lista + ' | ' + base;
+}
 
 function radar03Numero(p) {
   const numero = String(p?.numero ?? p?.numero_proposicao ?? p?.num ?? '').trim();
@@ -566,6 +584,8 @@ function radar03AgruparNovidades(novas) {
       ementa: String(p?.ementa || p?.resumo || p?.titulo || '').trim(),
       link: String(p?.link || p?.url || p?.fonte || p?.projeto_url || '').trim(),
       clienteSugestao: Array.isArray(p?.clientesCitados) ? p.clientesCitados.join(', ') : '',
+      clienteCitado: Array.isArray(p?.clientesCitados) && p.clientesCitados.length > 0,
+      clienteCitadoNomes: Array.isArray(p?.clientesCitados) ? p.clientesCitados.join(', ') : '',
     };
     let atual = porTipo.get(tipo);
     if (!atual) {
@@ -609,7 +629,7 @@ async function sincronizarRadar03(novas) {
     while (casa.week.length < 5) casa.week.push('off');
 
     resumo.forEach(rec => {
-      const detalhes = Array.isArray(rec.itens) && rec.itens.length ? rec.itens : [rec];
+      const detalhes = [rec];
       const existentesTipo = casa.items.filter(i => radar03TipoControle(i?.tipo || '') === rec.tipo);
       const baseAtual = existentesTipo.reduce((max, i) => {
         const n = Number.parseInt(String(i?.base || i?.mon || 0), 10) || 0;
@@ -637,6 +657,8 @@ async function sincronizarRadar03(novas) {
         item.ementa = det.ementa || item.ementa || '';
         item.link = det.link || item.link || '';
         item.clienteSugestao = det.clienteSugestao || item.clienteSugestao || '';
+        item.clienteCitado = Boolean(det.clienteCitado || item.clienteCitado);
+        item.clienteCitadoNomes = det.clienteCitadoNomes || item.clienteCitadoNomes || item.clienteSugestao || '';
         item.radar03Id = det.id || item.radar03Id || '';
         item.listaReal03 = true;
       });
@@ -667,7 +689,7 @@ async function sincronizarRadar03(novas) {
 function radar03ReviewUrl(novas) {
   const params = new URLSearchParams({
     casa: CASA_RADAR03,
-    bloco: radar03BlocoEmail(novas),
+    bloco: radar03AgruparNovidades(novas).map(item => item.tipo + ' ' + item.numero + (item.ano ? '/' + item.ano : '')).join(' | '),
     fonte: radar03PrimeiraFonte(novas),
   });
   return `${RADAR03_URL}?${params.toString()}`;
@@ -754,7 +776,7 @@ async function enviarEmail(novas) {
   await transporter.sendMail({
     from: `"Monitor Vitória" <${EMAIL_REMETENTE}>`,
     to: EMAIL_DESTINO,
-    subject: `🏛️ Vitória: ${novas.length} nova(s) proposição(ões) — ${new Date().toLocaleDateString('pt-BR')}`,
+    subject: assuntoEmailClienteCitado(novas, `🏛️ Vitória: ${novas.length} nova(s) proposição(ões) — ${new Date().toLocaleDateString('pt-BR')}`),
     html,
   });
 
