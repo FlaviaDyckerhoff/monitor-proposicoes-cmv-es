@@ -402,6 +402,10 @@ const CLIENTES_NOMES_PROPRIOS = [
 ];
 
 const CLIENTES_INATIVOS_NAO_DESTACAR = [
+  'CVC', 'DIAGEO', 'Femsa', 'Lalamove', 'lalamove',
+  'Maersk', 'Matrix', 'Rei do Pitaco', 'Sanofi', 'Syngenta',
+  'Ypê', 'Ype', 'Braskem', 'Vital', 'Natural Energia',
+  'Pacto Pela Fome', 'TikTok', 'Norte Energia', 'Mac Jee',
   'Solar', 'Grupo Simões', 'Grupo Simoes'
 ];
 
