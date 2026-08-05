@@ -641,7 +641,7 @@ async function sincronizarRadar03(novas) {
     while (casa.week.length < 5) casa.week.push('off');
 
     resumo.forEach(rec => {
-      const detalhes = [rec];
+      const detalhes = rec.itens && rec.itens.length ? rec.itens : [rec];
       const existentesTipo = casa.items.filter(i => radar03TipoControle(i?.tipo || '') === rec.tipo);
       const baseAtual = existentesTipo.reduce((max, i) => {
         const n = Number.parseInt(String(i?.base || i?.mon || 0), 10) || 0;
@@ -655,7 +655,7 @@ async function sincronizarRadar03(novas) {
             Number.parseInt(String(i?.mon || 0), 10) === det.numeroInt &&
             String(i?.link || '') === String(det.link || ''))
         );
-        if (!item) {
+        if (!item && !(det.id || det.link)) {
           item = casa.items.find(i => radar03TipoControle(i?.tipo || '') === det.tipo);
         }
         if (!item) {
@@ -692,7 +692,7 @@ async function sincronizarRadar03(novas) {
     });
 
     const postResp = await fetch(CONTROLE03_STATE_URL, {
-      method: 'POST', headers: radar03AuthHeaders(), body: JSON.stringify({ data }),
+      method: 'POST', headers: radar03AuthHeaders(), body: JSON.stringify({ data, merge_casas: [CASA_RADAR03] }),
     });
     if (!postResp.ok) throw new Error('POST ' + postResp.status);
     console.log('✅ Radar 03 sincronizado: ' + CASA_RADAR03 + ' · ' + resumo.map(item => item.tipo + ' ' + item.numero + '/' + item.ano).join(' | '));
