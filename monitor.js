@@ -56,6 +56,38 @@ function salvarEstado(estado) {
   fs.writeFileSync(ARQUIVO_ESTADO, JSON.stringify(estado, null, 2));
 }
 
+class FonteBloqueadaError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'FonteBloqueadaError';
+  }
+}
+
+function isCloudflareBlock(html) {
+  return /Attention Required! \| Cloudflare|cdn-cgi\/styles\/cf\.errors|Cloudflare Ray ID/i.test(html || '');
+}
+
+async function lerRespostaFonte(resp, contexto) {
+  const texto = await resp.text();
+  if (!resp.ok) {
+    if (resp.status === 403 && isCloudflareBlock(texto)) {
+      throw new FonteBloqueadaError(
+        `CMV-ES bloqueada por Cloudflare HTTP 403 em ${contexto}. ` +
+        'Nao e falha de estado.json, email ou parser; a fonte esta recusando o IP/ambiente do runner. ' +
+        'Proximo passo: executar por rota autorizada/fora desse IP ou mapear fonte oficial alternativa.'
+      );
+    }
+    throw new Error(`HTTP ${resp.status} em ${contexto}`);
+  }
+  if (isCloudflareBlock(texto)) {
+    throw new FonteBloqueadaError(
+      `CMV-ES devolveu pagina Cloudflare em ${contexto}. ` +
+      'Coleta bloqueada antes do conteudo legislativo.'
+    );
+  }
+  return texto;
+}
+
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
 function extrairViewState(html) {
@@ -161,9 +193,7 @@ async function carregarPaginaInicial() {
   console.log(`📥 Carregando página inicial: ${url}`);
 
   const resp = await fetch(url, { headers: HEADERS_BASE });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} na página inicial`);
-
-  const html = await resp.text();
+  const html = await lerRespostaFonte(resp, 'pagina inicial');
   const viewState = extrairViewState(html);
   const viewStateGen = extrairViewStateGenerator(html);
   const eventValidation = extrairEventValidation(html);
@@ -212,9 +242,7 @@ async function mudarPara50Itens({ viewState, viewStateGen, eventValidation, cook
     body: body.toString(),
   });
 
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} ao mudar itens/página`);
-
-  const texto = await resp.text();
+  const texto = await lerRespostaFonte(resp, 'mudanca para 50 itens por pagina');
   const novoViewState = extrairViewStateDeResposta(texto);
   const novoEventValidation = extrairEventValidationDeResposta(texto);
   const htmlPanel = extrairHtmlUpdatePanel(texto);
@@ -265,9 +293,7 @@ async function buscarPagina(numeroPagina, estadoAtual) {
     body: body.toString(),
   });
 
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} na página ${numeroPagina}`);
-
-  const texto = await resp.text();
+  const texto = await lerRespostaFonte(resp, `pagina ${numeroPagina}`);
   const novoViewState = extrairViewStateDeResposta(texto);
   const novoEventValidation = extrairEventValidationDeResposta(texto);
   const htmlPanel = extrairHtmlUpdatePanel(texto);
@@ -849,6 +875,9 @@ async function enviarEmail(novas) {
 
   } catch (err) {
     console.error(`❌ Erro fatal: ${err.message}`);
+    if (err instanceof FonteBloqueadaError) {
+      console.error(`::error title=CMV-ES fonte bloqueada::${err.message}`);
+    }
     console.error(err.stack);
     process.exit(1);
   }
