@@ -465,7 +465,16 @@ const CLIENTES_INATIVOS_NAO_DESTACAR = [
 ];
 
 function clienteAtivoParaDestaque(nome) {
-  return !CLIENTES_INATIVOS_NAO_DESTACAR.some(inativo => inativo.toLowerCase() === String(nome || '').toLowerCase());
+  // Base viva do Monitor em 06/10/2026: somente nomes próprios de clientes
+  // operacionais. Bebidas/Energia/Fiação são categorias, não nomes literais.
+  const ativos = new Set([
+    'firjan', 'red bull', 'redbull', 'sindicerv',
+    'boticario', 'boticário', 'grupo boticario', 'grupo boticário',
+    'o boticario', 'o boticário', 'jbs', 'friboi', 'mindlab',
+    '4um', 'abrasel pb', 'abrasel paraíba',
+    'consórcio maracanã', 'octavio dyckerhoff'
+  ]);
+  return ativos.has(String(nome || '').toLowerCase());
 }
 
 function clientesCitadosNaProposicao(p) {
@@ -534,6 +543,17 @@ function renderizarEmentaCliente(p, renderBase) {
     '🆘 CLIENTE CITADO: ' + mlDestacarTermosClienteEmail(clientes, p && p.clientesCitados) +
     '</span></div>';
 }
+// Interesse setorial é pista de revisão, nunca cliente citado nominalmente.
+const mlRenderEmentaSemInteresse = renderizarEmentaCliente;
+renderizarEmentaCliente = function(p, ...args) {
+  const html = mlRenderEmentaSemInteresse(p, ...args);
+  const temas = ((p && p.clientInterestMatches) || [])
+    .filter(match => match.match_type === 'theme')
+    .map(match => match.cliente + ' (' + match.termos.join(', ') + ')');
+  return temas.length ? html + '<div style="margin-top:6px;color:#1e40af;font-size:11px"><strong>🔎 Interesse potencial — conferir:</strong> ' +
+    temas.join('; ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' : html;
+};
+
 
 
 function clientesCitadosResumoEmail(novas) {
