@@ -1,3 +1,5 @@
+const mlPropsPriority = require('./priority_terms');
+
 const FICHA_URL = process.env.FICHA_URL || 'https://doe.monitorlegislativo.com.br/ficha';
 
 function fichaEmailButtonHtml() {
@@ -418,63 +420,10 @@ function ordemTipo(tipo) {
 }
 
 
-const CLIENTES_NOMES_PROPRIOS = [
-  'FIRJAN', 'Red Bull', 'Sindicerv', 'Boticario',
-  'Boticário', 'Grupo Boticario', 'Grupo Boticário', 'O Boticario',
-  'O Boticário', 'Abrasel', 'Abrasel PB', 'Abrasel Paraíba',
-  'ANBRASEL', 'Ambev', 'Heineken', 'Abralatas',
-  'ABIR', 'Coca-Cola', 'Coca Cola', 'Coca-Cola Company',
-  'Femsa', 'Solar', 'Grupo Simões', 'Grupo Simoes',
-  'Andina', 'CVI', 'iFood', 'Zé Delivery',
-  'Ze Delivery', 'Verde Brasil', 'JCRIG', 'Associação dos Cemitérios e Crematórios do Brasil',
-  'Associacao dos Cemiterios e Crematorios do Brasil', 'Lalamove', 'Matrix', 'CVC',
-  'Rei do Pitaco', 'Maersk', 'Mac Jee', 'Norte Energia',
-  'Pacto Pela Fome', 'Sanofi', 'TikTok', 'Minalba',
-  'Esmaltec', 'Nacional Gás', 'Nacional Gas', 'Syngenta',
-  'Braskem', 'Ypê', 'Ype', 'VTal',
-  'V.tal', 'Grupo EPR', 'EPR', 'Natural Energia',
-  'DIAGEO', 'Alpargatas', 'Ternium', 'ABRADEE',
-  'Eletrobras', 'Eletrobrás', 'MeetKai', 'IPQ',
-  'Equatorial', 'EquatorialEnergia', 'Equatorial Energia', 'Equatorial Goiás',
-  'Equatorial Goias', 'Equatorial Goiás Distribuidora de Energia', 'Equatorial Goias Distribuidora de Energia', 'CEA Equatorial',
-  'CEA Equatorial Energia', 'Equtorial', 'Energisa', 'EnergisaLuz',
-  'Neoenergia', 'ENEL', 'Ampla Energia', 'SABESP',
-  'COMGAS', 'COMGÁS', 'AEGEA', 'Aegea Saneamento',
-  'Águas de Teresina', 'Aguas de Teresina', 'Águas de Timon', 'Aguas de Timon',
-  'Águas do Rio', 'Aguas do Rio', 'Águas do Rio 1', 'Águas do Rio 4',
-  'Naturgy', 'Agenersa', 'Regenera', 'Comlurb',
-  'Hekos', 'Orizon', 'Solvi', 'União Norte',
-  'Uniao Norte', 'Vital', 'Eletromidia', 'Eletromídia',
-  'AkzoNobel', 'Expedia', 'Hotels.com', 'Vrbo',
-  'RTSC', 'Gramado Parks', 'Grupo Wish', 'Huawei',
-  'Carrefour', 'Atacadão', 'Atacadao', 'Walmart',
-  "Sam's Club", 'Sams Club', 'JBS', 'Friboi',
-  'Seara', 'Swift', "Pilgrim's", 'Pilgrims',
-  'Wild Fork', 'Ajinomoto', 'Vibra', 'Vibra Energia',
-  'BR Distribuidora', 'Raízen', 'Raizen', 'Mindlab',
-  'ABVTEX', 'Semove', 'Barcas', 'Seta',
-  'Nova Infra'
-];
-
-const CLIENTES_INATIVOS_NAO_DESTACAR = [
-  'CVC', 'DIAGEO', 'Femsa', 'Lalamove', 'lalamove',
-  'Maersk', 'Matrix', 'Rei do Pitaco', 'Sanofi', 'Syngenta',
-  'Ypê', 'Ype', 'Braskem', 'Vital', 'Natural Energia',
-  'Pacto Pela Fome', 'TikTok', 'Norte Energia', 'Mac Jee',
-  'Solar', 'Grupo Simões', 'Grupo Simoes'
-];
+const CLIENTES_NOMES_PROPRIOS = mlPropsPriority.COMPANY_NAMES;
 
 function clienteAtivoParaDestaque(nome) {
-  // Base viva do Monitor em 06/10/2026: somente nomes próprios de clientes
-  // operacionais. Bebidas/Energia/Fiação são categorias, não nomes literais.
-  const ativos = new Set([
-    'firjan', 'red bull', 'redbull', 'sindicerv',
-    'boticario', 'boticário', 'grupo boticario', 'grupo boticário',
-    'o boticario', 'o boticário', 'jbs', 'friboi', 'mindlab',
-    '4um', 'abrasel pb', 'abrasel paraíba',
-    'consórcio maracanã', 'octavio dyckerhoff'
-  ]);
-  return ativos.has(String(nome || '').toLowerCase());
+  return mlPropsPriority.isActiveCompany(nome);
 }
 
 function clientesCitadosNaProposicao(p) {
@@ -527,7 +476,11 @@ function mlDestacarTermosClienteEmail(texto, clientes) {
   });
 }
 
-function renderizarEmentaCliente(p, renderBase) {
+function renderizarEmentaCliente(p, ...args) {
+  return mlPropsPriority.priorityEmenta(renderizarEmentaClienteAntesPrioridade(p, ...args), p);
+}
+
+function renderizarEmentaClienteAntesPrioridade(p, renderBase) {
   const texto = String((p && p.ementa) || '-');
   const partes = texto.split(/\s+\|\s+(?:🆘\s*)?CLIENTE CITADO:\s+|\s+\|\s+Cliente citado:\s+/i);
   const ementa = renderBase
@@ -567,6 +520,10 @@ function clientesCitadosResumoEmail(novas) {
 }
 
 function assuntoEmailClienteCitado(novas, assuntoBase) {
+  return mlPropsPriority.prioritySubject(novas, assuntoEmailClienteCitadoAntesPrioridade(novas, assuntoBase));
+}
+
+function assuntoEmailClienteCitadoAntesPrioridade(novas, assuntoBase) {
   const nomes = clientesCitadosResumoEmail(novas);
   if (!nomes.length) return assuntoBase;
   const lista = nomes.slice(0, 3).join(', ') + (nomes.length > 3 ? ' +' + (nomes.length - 3) : '');
