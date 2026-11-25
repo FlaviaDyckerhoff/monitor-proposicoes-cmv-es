@@ -21,6 +21,7 @@ jobs:
     steps:
       - name: Conferir integridade e executar procedimento local aprovado
         env:
+          RECOVERY_RECEIPTS: /var/lib/controle03-maintenance-48860
           RECOVERY_MODE: ${{ inputs.mode }}
           CONTROLE03_API_USER: ${{ secrets.CONTROLE03_API_USER }}
           CONTROLE03_API_PASS: ${{ secrets.CONTROLE03_API_PASS }}
@@ -30,7 +31,7 @@ jobs:
           python3 - <<'PYTHON'
           import hashlib, runpy
           from pathlib import Path
-          p = Path('/root/.openclaw/workspace/projects/se-coleta-pls-20261114/fix/lacunas-46639/recuperar_via_runner.py')
-          assert hashlib.sha256(p.read_bytes()).hexdigest() == 'f7663a0977e8f4c9848dedb198292eac6c502bbd4bc3d7d29fe84618104c4658', 'Procedimento local divergente; interrompido'
+          p = Path('/opt/controle03-maintenance-48860/recuperar_via_runner.py')
+          assert hashlib.sha256(p.read_bytes()).hexdigest() == 'aaa78a1106f73c95a3434d6c437c15d745f5fd6f2e54dff488dd91687b373bbf', 'Procedimento local divergente; interrompido'
           runpy.run_path(str(p), run_name='__main__')
           PYTHON
