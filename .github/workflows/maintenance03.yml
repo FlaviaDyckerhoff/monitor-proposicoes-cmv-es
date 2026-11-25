@@ -1,0 +1,36 @@
+name: Manutenção autenticada Controle 03
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Conferência ou recuperação delimitada sem email"
+        required: true
+        default: probe
+        type: choice
+        options:
+          - probe
+          - recover
+permissions: {}
+concurrency:
+  group: controle03-maintenance
+  cancel-in-progress: false
+jobs:
+  maintenance:
+    runs-on: self-hosted
+    timeout-minutes: 8
+    steps:
+      - name: Conferir integridade e executar procedimento local aprovado
+        env:
+          RECOVERY_MODE: ${{ inputs.mode }}
+          CONTROLE03_API_USER: ${{ secrets.CONTROLE03_API_USER }}
+          CONTROLE03_API_PASS: ${{ secrets.CONTROLE03_API_PASS }}
+          CONTROLE03_STATE_URL: ${{ secrets.CONTROLE03_STATE_URL }}
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, runpy
+          from pathlib import Path
+          p = Path('/root/.openclaw/workspace/projects/se-coleta-pls-20261114/fix/lacunas-46639/recuperar_via_runner.py')
+          assert hashlib.sha256(p.read_bytes()).hexdigest() == 'f7663a0977e8f4c9848dedb198292eac6c502bbd4bc3d7d29fe84618104c4658', 'Procedimento local divergente; interrompido'
+          runpy.run_path(str(p), run_name='__main__')
+          PYTHON
